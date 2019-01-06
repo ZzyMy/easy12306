@@ -33,27 +33,53 @@ def download_images():
         print(idx)
 
 
-def pretreat():
-    if not os.path.isdir(PATH):
-        download_images()
+def get_text(img):
+    # 得到图像中的文本部分
+    return img[3:22, 120:177]
+
+
+def avhash(im):
+    im = cv2.resize(im, (8, 8))
+    avg = im.mean()
+    _, im = cv2.threshold(im, avg, 1, cv2.THRESH_BINARY)
+    im = im.reshape(-1)
+    im = np.packbits(im)
+    return im
+
+
+def get_imgs(img):
+    interval = 5
+    length = 67
     imgs = []
-    for img in os.listdir(PATH):
-        img = os.path.join(PATH, img)
-        img = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
-        # 得到图像中的文本部分
-        img = img[3:22, 120:177]
-        imgs.append(img)
+    for x in range(40, img.shape[0] - length, interval + length):
+        for y in range(interval, img.shape[1] - length, interval + length):
+            imgs.append(avhash(img[x:x + length, y:y + length]))
     return imgs
 
 
-def load_data(path='data.npy'):
+def pretreat():
+    if not os.path.isdir(PATH):
+        download_images()
+    texts, imgs = [], []
+    for img in os.listdir(PATH):
+        img = os.path.join(PATH, img)
+        img = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
+        texts.append(get_text(img))
+        imgs.append(get_imgs(img))
+    return texts, imgs
+
+
+def load_data(path='data.npz'):
     if not os.path.isfile(path):
-        imgs = pretreat()
-        np.save(path, imgs)
-    return np.load(path)
+        texts, imgs = pretreat()
+        np.savez(path, texts=texts, imgs=imgs)
+    f = np.load(path)
+    return f['texts'], f['imgs']
 
 
 if __name__ == '__main__':
-    imgs = load_data()
+    texts, imgs = load_data()
+    print(texts.shape)
     print(imgs.shape)
-    cv2.imwrite('temp.jpg', imgs[0])
+    imgs = imgs.reshape(-1, 8)
+    print(np.unique(imgs, axis=0).shape)
